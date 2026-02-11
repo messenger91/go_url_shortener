@@ -11,8 +11,8 @@ Content-Type: {{contentType}}
 Authorization: {{authorization}}
 
 {
-  "URL": "https://github.com/messenger91/go_url_shortener"
+  "URL": "https://github.com/messenger91"
 }
 
 ### Get alias and redirect to url
-GET http://localhost:8082/STXHK2
+GET http://localhost:8082/IeDpBFZv

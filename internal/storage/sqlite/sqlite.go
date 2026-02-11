@@ -6,48 +6,31 @@ import (
 	"errors"
 	"fmt"
 
-	_ "modernc.org/sqlite"
-
 	"url-shortener/internal/storage"
+	"url-shortener/internal/storage/sqlite/migrations"
+
+	"github.com/jmoiron/sqlx"
+	_ "modernc.org/sqlite"
 )
 
 type Storage struct {
-	db *sql.DB
+	db *sqlx.DB
 }
 
-func NewStorage(storagePath string) (*Storage, error) {
+func Connect(path string) (*Storage, error) {
 	// current func name for logs and errors
-	const op = "storage.sqlite.NewStorage"
+	const op = "storage.sqlite.Connect"
 
-	db, err := sql.Open("sqlite", storagePath)
-
-	if err != nil {
-		return nil, fmt.Errorf("%s: %w", op, err)
-	}
-
-	// create table if not exists
-	query := `
-	CREATE TABLE IF NOT EXISTS url (id INTEGER PRIMARY KEY AUTOINCREMENT,
-		url VARCHAR(255) NOT NULL,
-		alias VARCHAR(255) NOT NULL UNIQUE,
-		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
-		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
-	);
-	CREATE INDEX IF NOT EXISTS idx_alias ON url(alias);
-	`
-	stmt, err := db.Prepare(query)
+	db, err := sqlx.Connect("sqlite", path)
 
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
-	_, err = stmt.Exec()
+	// init migrations
+	migrations.Up(db)
 
-	if err != nil {
-		return nil, fmt.Errorf("%s: %w", op, err)
-	}
-
-	return &Storage{db: db}, nil
+	return &Storage{db}, nil
 }
 
 func (s *Storage) SaveURL(urlToSave string, alias string) (int64, error) {

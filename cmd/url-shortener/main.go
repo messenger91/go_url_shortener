@@ -40,7 +40,7 @@ func main() {
 	)
 	log.Debug("debug messages are enabled")
 
-	storage, err := sqlite.NewStorage(cfg.StoragePath)
+	storage, err := sqlite.Connect(cfg.StoragePath)
 	if err != nil {
 		log.Error("failed to init storage", sl.Err(err))
 		os.Exit(1)
