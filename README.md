@@ -152,6 +152,23 @@ This will return a 302 redirect to the original URL.
 - 404 Not Found: Alias not found
 - 500 Internal Server Error: Database error
 
+### Delete a Short URL
+
+**DELETE** `/url/{alias}`
+
+Deletes the alias and its short URL. Requires basic authentication.
+
+#### Example Request
+```bash
+curl -X DELETE http://localhost:8082/url/mylink \
+  -H "Authorization: Basic $(echo -n 'admin:admin' | base64)"
+```
+
+#### Response
+- 200 OK: URL deleted
+- 404 Not Found: Alias not found
+- 500 Internal Server Error: Database error
+
 ## Development
 
 ### Running Tests
@@ -174,7 +191,8 @@ go test ./...
 │   ├── http-server/           # HTTP server implementation
 │   │   ├── handlers/          # Request handlers
 │   │   │   ├── url/
-│   │   │   │   └── save/      # Save URL handler
+│   │   │   │   ├── save/      # Save URL handler
+│   │   │   │   └── delete/    # Delete URL handler
 │   │   │   └── redirect/      # Redirect handler
 │   │   └── middleware/        # HTTP middleware
 │   ├── lib/                   # Utility libraries

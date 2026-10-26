@@ -16,3 +16,6 @@ Authorization: {{authorization}}
 
 ### Get alias and redirect to url
 GET http://localhost:8082/IeDpBFZv
+### Delete alias
+DELETE {{host}}/url/IeDpBFZv
+Authorization: {{authorization}}

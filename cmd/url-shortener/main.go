@@ -15,6 +15,7 @@ import (
 
 	"url-shortener/internal/config"
 	"url-shortener/internal/http-server/handlers/redirect"
+	urlDelete "url-shortener/internal/http-server/handlers/url/delete"
 	"url-shortener/internal/http-server/handlers/url/save"
 	mwLogger "url-shortener/internal/http-server/middleware/logger"
 	"url-shortener/internal/lib/logger/handlers/slogpretty"
@@ -60,6 +61,7 @@ func main() {
 		}))
 
 		r.Post("/", save.New(log, storage, cfg.AliasLength))
+		r.Delete("/{alias}", urlDelete.New(log, storage))
 	})
 
 	router.Get("/{alias}", redirect.New(log, storage))

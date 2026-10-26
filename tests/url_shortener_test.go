@@ -30,7 +30,7 @@ func TestURLShortener_HappyPath(t *testing.T) {
 			URL:   gofakeit.URL(),
 			Alias: random.NewRandomString(10),
 		}).
-		WithBasicAuth("myuser", "mypass").
+		WithBasicAuth("admin", "admin").
 		Expect().
 		Status(200).
 		JSON().Object().
@@ -40,26 +40,30 @@ func TestURLShortener_HappyPath(t *testing.T) {
 //nolint:funlen
 func TestURLShortener_SaveRedirect(t *testing.T) {
 	testCases := []struct {
-		name  string
-		url   string
-		alias string
-		error string
+		name    string
+		url     string
+		alias   string
+		error   string
+		status  int
 	}{
 		{
-			name:  "Valid URL",
-			url:   gofakeit.URL(),
-			alias: gofakeit.Word() + gofakeit.Word(),
+			name:   "Valid URL",
+			url:    gofakeit.URL(),
+			alias:  gofakeit.Word() + gofakeit.Word(),
+			status: http.StatusOK,
 		},
 		{
-			name:  "Invalid URL",
-			url:   "invalid_url",
-			alias: gofakeit.Word(),
-			error: "field URL is not a valid URL",
+			name:   "Invalid URL",
+			url:    "invalid_url",
+			alias:  gofakeit.Word(),
+			error:  "field URL is not a valid URL",
+			status: http.StatusBadRequest,
 		},
 		{
-			name:  "Empty Alias",
-			url:   gofakeit.URL(),
-			alias: "",
+			name:   "Empty Alias",
+			url:    gofakeit.URL(),
+			alias:  "",
+			status: http.StatusOK,
 		},
 		// TODO: add more test cases
 	}
@@ -80,8 +84,8 @@ func TestURLShortener_SaveRedirect(t *testing.T) {
 					URL:   tc.url,
 					Alias: tc.alias,
 				}).
-				WithBasicAuth("myuser", "mypass").
-				Expect().Status(http.StatusOK).
+				WithBasicAuth("admin", "admin").
+				Expect().Status(tc.status).
 				JSON().Object()
 
 			if tc.error != "" {

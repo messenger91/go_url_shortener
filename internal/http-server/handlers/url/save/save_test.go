@@ -15,6 +15,7 @@ import (
 	"url-shortener/internal/http-server/handlers/url/save"
 	"url-shortener/internal/http-server/handlers/url/save/mocks"
 	"url-shortener/internal/lib/logger/handlers/slogdiscard"
+	"url-shortener/internal/storage"
 )
 
 func TestSaveHandler(t *testing.T) {
@@ -23,36 +24,50 @@ func TestSaveHandler(t *testing.T) {
 		alias     string
 		url       string
 		respError string
+		status    int
 		mockError error
 	}{
 		{
-			name:  "Success",
-			alias: "test_alias",
-			url:   "https://google.com",
+			name:   "Success",
+			alias:  "test_alias",
+			url:    "https://google.com",
+			status: http.StatusOK,
 		},
 		{
-			name:  "Empty alias",
-			alias: "",
-			url:   "https://google.com",
+			name:   "Empty alias",
+			alias:  "",
+			url:    "https://google.com",
+			status: http.StatusOK,
 		},
 		{
 			name:      "Empty URL",
 			url:       "",
 			alias:     "some_alias",
 			respError: "field URL is a required field",
+			status:    http.StatusBadRequest,
 		},
 		{
 			name:      "Invalid URL",
 			url:       "some invalid URL",
 			alias:     "some_alias",
 			respError: "field URL is not a valid URL",
+			status:    http.StatusBadRequest,
 		},
 		{
 			name:      "SaveURL Error",
 			alias:     "test_alias",
 			url:       "https://google.com",
 			respError: "failed to add url",
+			status:    http.StatusInternalServerError,
 			mockError: errors.New("unexpected error"),
+		},
+		{
+			name:      "SaveURL URL Exists",
+			alias:     "test_alias",
+			url:       "https://google.com",
+			respError: "url already exists",
+			status:    http.StatusConflict,
+			mockError: storage.ErrURLExists,
 		},
 	}
 
@@ -80,7 +95,7 @@ func TestSaveHandler(t *testing.T) {
 			rr := httptest.NewRecorder()
 			handler.ServeHTTP(rr, req)
 
-			require.Equal(t, rr.Code, http.StatusOK)
+			require.Equal(t, tc.status, rr.Code)
 
 			body := rr.Body.String()
 
