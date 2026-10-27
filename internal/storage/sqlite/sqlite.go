@@ -164,6 +164,63 @@ func (s *Storage) GetVisitsCount(alias string) (int64, error) {
 	return count, nil
 }
 
+// GetVisitsByDay returns the per-day visit counts for the last days calendar
+// days, UTC-based, oldest first. Days without visits are reported with zero
+// counts, so the result always has exactly days entries.
+func (s *Storage) GetVisitsByDay(alias string, days int) ([]storage.VisitsByDay, error) {
+	const op = "storage.sqlite.GetVisitsByDay"
+
+	stmt, err := s.db.Prepare(`
+		SELECT date(created_at), COUNT(*)
+		FROM visits
+		WHERE alias = ? AND created_at >= date('now', ?)
+		GROUP BY date(created_at)
+		ORDER BY date(created_at)
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("%s: prepare statement: %w", op, err)
+	}
+
+	rows, err := stmt.Query(alias, fmt.Sprintf("-%d days", days-1))
+	if err != nil {
+		return nil, fmt.Errorf("%s: execute statement: %w", op, err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	counts := make(map[string]int64)
+	for rows.Next() {
+		var (
+			day   string
+			count int64
+		)
+
+		if err := rows.Scan(&day, &count); err != nil {
+			return nil, fmt.Errorf("%s: scan row: %w", op, err)
+		}
+
+		counts[day] = count
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("%s: iterate rows: %w", op, err)
+	}
+
+	now := time.Now().UTC()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+
+	res := make([]storage.VisitsByDay, 0, days)
+	for i := days - 1; i >= 0; i-- {
+		day := today.AddDate(0, 0, -i).Format("2006-01-02")
+
+		res = append(res, storage.VisitsByDay{
+			Date:  day,
+			Count: counts[day],
+		})
+	}
+
+	return res, nil
+}
+
 func (s *Storage) Ping() error {
 	const op = "storage.sqlite.Ping"
 

@@ -17,3 +17,10 @@ type URL struct {
 	Alias     string
 	ExpiresAt time.Time
 }
+
+// VisitsByDay is the number of visits recorded on one UTC calendar day.
+// Date has the YYYY-MM-DD form.
+type VisitsByDay struct {
+	Date  string
+	Count int64
+}

@@ -54,6 +54,14 @@ func TestStorage(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, int64(2), count)
 
+	// the breakdown covers exactly the requested number of UTC days,
+	// today holds the visits recorded above
+	byDay, err := st.GetVisitsByDay(testAlias, 7)
+	require.NoError(t, err)
+	require.Len(t, byDay, 7)
+	require.Equal(t, int64(2), byDay[6].Count)
+	require.Equal(t, time.Now().UTC().Format("2006-01-02"), byDay[6].Date)
+
 	require.NoError(t, st.DeleteURL(testAlias))
 
 	_, err = st.GetURL(testAlias)

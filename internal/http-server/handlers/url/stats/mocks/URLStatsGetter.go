@@ -41,6 +41,36 @@ func (_m *URLStatsGetter) GetURL(alias string) (storage.URL, error) {
 	return r0, r1
 }
 
+// GetVisitsByDay provides a mock function with given fields: alias, days
+func (_m *URLStatsGetter) GetVisitsByDay(alias string, days int) ([]storage.VisitsByDay, error) {
+	ret := _m.Called(alias, days)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetVisitsByDay")
+	}
+
+	var r0 []storage.VisitsByDay
+	var r1 error
+	if rf, ok := ret.Get(0).(func(string, int) ([]storage.VisitsByDay, error)); ok {
+		return rf(alias, days)
+	}
+	if rf, ok := ret.Get(0).(func(string, int) []storage.VisitsByDay); ok {
+		r0 = rf(alias, days)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]storage.VisitsByDay)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(string, int) error); ok {
+		r1 = rf(alias, days)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // GetVisitsCount provides a mock function with given fields: alias
 func (_m *URLStatsGetter) GetVisitsCount(alias string) (int64, error) {
 	ret := _m.Called(alias)

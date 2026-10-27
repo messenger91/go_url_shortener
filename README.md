@@ -7,8 +7,9 @@ A lightweight and efficient URL shortening service built with Go. This service a
 - **URL Shortening**: Convert long URLs to short, memorable aliases
 - **Custom Aliases**: Optionally specify custom aliases for your URLs
 - **Link Expiration (TTL)**: Optionally give links a limited lifetime
-- **Click Statistics**: Count redirects per alias and read them via the stats endpoint
+- **Click Statistics**: Count redirects per alias, with a per-day breakdown, via the stats endpoint
 - **Rate Limiting**: Per-IP token bucket on the public redirect endpoint
+- **Health Check**: `/health` endpoint wired into the container `HEALTHCHECK`
 - **SQLite Storage**: Persistent storage using SQLite database
 - **Basic Authentication**: Secure endpoint for creating new short URLs
 - **RESTful API**: Clean and intuitive API design
@@ -182,13 +183,16 @@ curl -X DELETE http://localhost:8082/url/mylink \
 
 ### Get URL Statistics
 
-**GET** `/url/{alias}/stats`
+**GET** `/url/{alias}/stats?days={days}`
 
-Returns the original URL and the number of redirects recorded for the alias. Every successful `GET /{alias}` redirect is counted as a visit. Requires basic authentication.
+Returns the original URL, the total number of redirects recorded for the alias, and a per-day visit breakdown. Every successful `GET /{alias}` redirect is counted as a visit. Requires basic authentication.
+
+Query parameters:
+- `days` (optional): number of calendar days covered by `visits_by_day`, 1–365, default 30. Days are UTC; days without visits are reported with zero counts.
 
 #### Example Request
 ```bash
-curl http://localhost:8082/url/mylink/stats \
+curl http://localhost:8082/url/mylink/stats?days=7 \
   -H "Authorization: Basic $(echo -n 'admin:admin' | base64)"
 ```
 
@@ -199,13 +203,28 @@ Success (200 OK):
   "status": "OK",
   "alias": "mylink",
   "url": "https://www.example.com/very/long/url/to/be/shortened",
-  "visits": 42
+  "visits": 42,
+  "visits_by_day": [
+    {"date": "2026-10-26", "count": 3},
+    {"date": "2026-10-27", "count": 7}
+  ]
 }
 ```
 
 Error responses:
+- 400 Bad Request: invalid `days` parameter
 - 404 Not Found: Alias not found
 - 500 Internal Server Error: Database error
+
+### Health Check
+
+**GET** `/health`
+
+Public, unauthenticated and rate-limit-exempt endpoint that verifies the service can reach its storage. Used by the container `HEALTHCHECK`.
+
+#### Response
+- 200 OK: `{"status": "OK"}` — service and storage are healthy
+- 503 Service Unavailable: storage is unreachable
 
 ## Development
 

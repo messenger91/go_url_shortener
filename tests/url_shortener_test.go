@@ -159,6 +159,27 @@ func TestURLShortener_Stats(t *testing.T) {
 	stats.Value("url").String().IsEqual(targetURL)
 	stats.Value("visits").Number().IsEqual(1)
 
+	// the default breakdown covers 30 days, the redirect landed today
+	byDay := stats.Value("visits_by_day").Array()
+	byDay.Length().IsEqual(30)
+	byDay.Value(0).Object().Value("count").Number().IsEqual(0)
+	byDay.Value(29).Object().Value("count").Number().IsEqual(1)
+
+	stats7 := e.GET("/url/"+alias+"/stats").
+		WithQuery("days", 7).
+		WithBasicAuth("admin", "admin").
+		Expect().
+		Status(http.StatusOK).
+		JSON().Object()
+
+	stats7.Value("visits_by_day").Array().Length().IsEqual(7)
+
+	e.GET("/url/"+alias+"/stats").
+		WithQuery("days", "abc").
+		WithBasicAuth("admin", "admin").
+		Expect().
+		Status(http.StatusBadRequest)
+
 	e.GET("/url/"+random.NewRandomString(10)+"/stats").
 		WithBasicAuth("admin", "admin").
 		Expect().
