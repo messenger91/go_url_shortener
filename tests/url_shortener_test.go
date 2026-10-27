@@ -165,6 +165,20 @@ func TestURLShortener_Stats(t *testing.T) {
 		Status(http.StatusNotFound)
 }
 
+func TestURLShortener_Health(t *testing.T) {
+	u := url.URL{
+		Scheme: "http",
+		Host:   host,
+	}
+	e := httpexpect.Default(t, u.String())
+
+	e.GET("/health").
+		Expect().
+		Status(http.StatusOK).
+		JSON().Object().
+		Value("status").String().IsEqual("OK")
+}
+
 func TestURLShortener_Expired(t *testing.T) {
 	alias := random.NewRandomString(10)
 

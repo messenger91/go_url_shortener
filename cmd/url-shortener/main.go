@@ -14,6 +14,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 
 	"url-shortener/internal/config"
+	"url-shortener/internal/http-server/handlers/health"
 	"url-shortener/internal/http-server/handlers/redirect"
 	urlDelete "url-shortener/internal/http-server/handlers/url/delete"
 	"url-shortener/internal/http-server/handlers/url/save"
@@ -71,6 +72,9 @@ func main() {
 
 	redirectRateLimiter := ratelimit.New(log, rate.Limit(cfg.RateLimit), cfg.RateBurst)
 	router.With(redirectRateLimiter).Get("/{alias}", redirect.New(log, storage))
+
+	// public and unlimited; also used by the container HEALTHCHECK
+	router.Get("/health", health.New(log, storage))
 
 	log.Info("starting server", slog.String("address", cfg.Address))
 

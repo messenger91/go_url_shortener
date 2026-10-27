@@ -164,6 +164,16 @@ func (s *Storage) GetVisitsCount(alias string) (int64, error) {
 	return count, nil
 }
 
+func (s *Storage) Ping() error {
+	const op = "storage.sqlite.Ping"
+
+	if err := s.db.Ping(); err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+
+	return nil
+}
+
 // isUniqueViolation reports whether err is a SQLite UNIQUE constraint failure,
 // e.g. saving a URL with an alias that already exists.
 func isUniqueViolation(err error) bool {
