@@ -1,0 +1,13 @@
+services:
+  url-shortener:
+    build: .
+    ports:
+      - "8082:8082"
+    environment:
+      HTTP_SERVER_PASSWORD: admin
+      STORAGE_PATH: /data/storage.db
+    volumes:
+      - url-shortener-data:/data
+
+volumes:
+  url-shortener-data:

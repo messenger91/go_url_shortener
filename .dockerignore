@@ -1,0 +1,7 @@
+.git
+.github
+.env
+*.db
+*.md
+rest.http
+tests
