@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Go URL-shortener REST service: create short aliases for URLs (POST /url), redirect GET /{alias} to the original URL, and delete them (DELETE /url/{alias}) — save/delete are Basic-auth protected. Stack: chi, log/slog, sqlx + SQLite via `modernc.org/sqlite` (pure Go, no CGO).
+Go URL-shortener REST service: create short aliases for URLs (POST /url), redirect GET /{alias} to the original URL, delete them (DELETE /url/{alias}), and read click stats (GET /url/{alias}/stats) — everything under /url is Basic-auth protected. Stack: chi, log/slog, sqlx + SQLite via `modernc.org/sqlite` (pure Go, no CGO).
 
 ## Module path
 
@@ -11,6 +11,7 @@ The module is named `url-shortener` (see go.mod), **not** the GitHub repo path. 
 ```bash
 go build ./...            # build
 go vet ./...              # vet
+golangci-lint run         # lint (config in .golangci.yml; CI uses v2.15.0)
 go test ./internal/...    # unit tests
 go test ./...             # also runs ./tests integration tests (need a live server)
 go generate ./...         # regenerate mockery mocks
@@ -21,8 +22,8 @@ go run cmd/url-shortener/main.go   # requires CONFIG_PATH, see below
 
 - `cmd/url-shortener/main.go` — entry point: config, logger setup, chi router wiring, graceful shutdown.
 - `internal/config/` — YAML config via cleanenv. Requires `CONFIG_PATH` env var pointing to a YAML file (e.g. `./config/local.yaml`); `HTTP_SERVER_PASSWORD` env var overrides the password.
-- `internal/http-server/handlers/` — one package per handler. Each handler exposes `New(log, deps...) http.HandlerFunc` and declares a small consumer-side interface (`URLSaver`, `URLGetter`) next to itself.
-- `internal/http-server/handlers/*/mocks/` — generated with `//go:generate go run github.com/vektra/mockery/v2@v2.28.2 --name=<Interface>`. Do not edit by hand.
+- `internal/http-server/handlers/` — one package per handler. Each handler exposes `New(log, deps...) http.HandlerFunc` and declares a small consumer-side interface (`URLSaver`, `URLGetter`, `URLDeleter`, `URLStatsGetter`) next to itself.
+- `internal/http-server/handlers/*/mocks/` — generated with `//go:generate go run github.com/vektra/mockery/v2@v2.53.8 --name=<Interface>`. Do not edit by hand.
 - `internal/lib/api/response/` — shared JSON envelope (`status`/`error`) and `ValidationError` formatting; use `resp.OK()` / `resp.Error(...)` / `render.JSON` in handlers.
 - `internal/lib/logger/sl/` — `sl.Err(err)` slog attribute helper; `slogpretty`/`slogdiscard` handlers.
 - `internal/storage/` — sentinel errors `ErrURLNotFound`, `ErrURLExists`; handlers match them with `errors.Is`.
@@ -40,11 +41,14 @@ go run cmd/url-shortener/main.go   # requires CONFIG_PATH, see below
 
 ## Migrations
 
-Hand-rolled, no migration tool: `internal/storage/sqlite/migrations/migrations.go` holds a single idempotent SQL string (all statements use `IF NOT EXISTS`) executed by `migrations.Up(db)` on every `sqlite.Connect`. Add new tables/indexes to that string. The `migrations` table exists but version tracking is not implemented (TODO in code).
+Hand-rolled versioned migrations, no external tool: `internal/storage/sqlite/migrations/` holds embedded numbered `NNNN_name.sql` files; `migrations.Up(db)` runs on every `sqlite.Connect`, tracks applied file names in the `migrations` table, and applies new ones in order, each in its own transaction. To change the schema, add a new `NNNN_description.sql` file with idempotent SQL (`IF NOT EXISTS`) — never edit an already-shipped migration file. The runner itself creates the `migrations` table; DBs created before version tracking have the schema but an empty table, so all files must stay idempotent.
+
+## Tooling
+
+- Lint: golangci-lint v2 (`.golangci.yml`, standard set + funlen). CI installs the pinned version from the workflow.
+- CI: `.github/workflows/ci.yml` — build, vet, lint, unit tests with `-race`, a check that mocks are regenerated (`go generate ./... && git diff --exit-code`), and integration tests against a server started in the job (SQLite needs no external services).
 
 ## Gotchas
 
-- `tests/` integration tests hit a live server at `localhost:8082` with the credentials from `config/local.yaml` (`admin:admin`) — start the server first or they fail with connection errors.
-- The mockery version pinned in the `//go:generate` directives (v2.28.2) **panics under Go 1.25** (`unsupported version: 2` from its bundled x/tools). Existing mocks under `handlers/*/mocks/` follow its output format and are maintained by hand until the directive is bumped to a newer mockery.
+- `tests/` integration tests hit a live server at `localhost:8082` with the credentials from `config/local.yaml` (`admin:admin`) — start the server first or they fail with connection errors. CI does this automatically.
 - `.env.example` is empty and `.env` files are not read by the app; configuration comes only from `CONFIG_PATH` YAML + env overrides.
-- No linter config, Makefile, or CI exists in the repo.

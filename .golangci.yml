@@ -1,0 +1,16 @@
+version: "2"
+
+linters:
+  # standard = errcheck, govet, ineffassign, staticcheck, unused
+  default: standard
+  enable:
+    - funlen
+  settings:
+    funlen:
+      # main() wires the whole app and is longer than the default 60 lines
+      lines: 100
+      statements: 60
+
+formatters:
+  enable:
+    - gofmt
