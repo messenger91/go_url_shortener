@@ -29,8 +29,10 @@ func Connect(path string) (*Storage, error) {
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
-	// init migrations
-	migrations.Up(db)
+	// apply migrations
+	if err := migrations.Up(db); err != nil {
+		return nil, fmt.Errorf("%s: apply migrations: %w", op, err)
+	}
 
 	return &Storage{db}, nil
 }

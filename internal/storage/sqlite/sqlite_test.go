@@ -11,7 +11,9 @@ import (
 )
 
 func TestStorage(t *testing.T) {
-	st, err := sqlite.Connect(filepath.Join(t.TempDir(), "storage.db"))
+	dbPath := filepath.Join(t.TempDir(), "storage.db")
+
+	st, err := sqlite.Connect(dbPath)
 	require.NoError(t, err)
 
 	const (
@@ -36,5 +38,12 @@ func TestStorage(t *testing.T) {
 	require.ErrorIs(t, err, storage.ErrURLNotFound)
 
 	err = st.DeleteURL(testAlias)
+	require.ErrorIs(t, err, storage.ErrURLNotFound)
+
+	// re-connect on the same file: migrations must be idempotent and data intact
+	st2, err := sqlite.Connect(dbPath)
+	require.NoError(t, err)
+
+	_, err = st2.GetURL("some_other_alias")
 	require.ErrorIs(t, err, storage.ErrURLNotFound)
 }
