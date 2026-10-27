@@ -10,3 +10,5 @@ http_server: # http server config
   idle_timeout: 30s
   user: "admin"
   password: "admin"
+  rate_limit: 10 # per-IP redirects per second
+  rate_burst: 20 # burst size above the steady rate

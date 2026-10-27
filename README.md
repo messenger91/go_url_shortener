@@ -6,6 +6,9 @@ A lightweight and efficient URL shortening service built with Go. This service a
 
 - **URL Shortening**: Convert long URLs to short, memorable aliases
 - **Custom Aliases**: Optionally specify custom aliases for your URLs
+- **Link Expiration (TTL)**: Optionally give links a limited lifetime
+- **Click Statistics**: Count redirects per alias and read them via the stats endpoint
+- **Rate Limiting**: Per-IP token bucket on the public redirect endpoint
 - **SQLite Storage**: Persistent storage using SQLite database
 - **Basic Authentication**: Secure endpoint for creating new short URLs
 - **RESTful API**: Clean and intuitive API design
@@ -70,13 +73,17 @@ http_server:                   # HTTP server configuration
   address: "localhost:8082"    # Server address
   timeout: 4s                  # Request timeout
   idle_timeout: 30s            # Idle connection timeout
-  user: "admin"               # Basic auth username
-  password: "admin"           # Basic auth password
+  user: "admin"                # Basic auth username
+  password: "admin"            # Basic auth password
+  rate_limit: 10               # Per-IP redirects per second
+  rate_burst: 20               # Burst size above the steady rate
 ```
 
 Environment variables that can override configuration values:
 - `CONFIG_PATH` - Path to the configuration file
 - `HTTP_SERVER_PASSWORD` - Password for basic authentication
+- `HTTP_SERVER_ADDRESS` - Server address (set to `0.0.0.0:8082` in the Docker image)
+- `STORAGE_PATH` - Path to the SQLite database file
 
 ## API Endpoints
 
@@ -94,12 +101,14 @@ Creates a new short URL alias for the provided long URL.
 ```json
 {
   "url": "https://www.example.com/very/long/url/to/be/shortened",
-  "alias": "optional_custom_alias"
+  "alias": "optional_custom_alias",
+  "ttl_seconds": 3600
 }
 ```
 
 - `url` (required): The long URL to be shortened (must be a valid URL)
 - `alias` (optional): Custom alias for the short URL. If not provided, a random alias of configured length will be generated.
+- `ttl_seconds` (optional): Link lifetime in seconds. If omitted, the link never expires; expired links respond with `410 Gone`.
 
 #### Example Request
 ```bash
@@ -150,6 +159,8 @@ This will return a 302 redirect to the original URL.
 #### Response
 - 302 Found: Redirect to the original URL
 - 404 Not Found: Alias not found
+- 410 Gone: The link has expired
+- 429 Too Many Requests: Per-IP rate limit exceeded
 - 500 Internal Server Error: Database error
 
 ### Delete a Short URL
@@ -203,6 +214,23 @@ Error responses:
 ```bash
 go test ./...
 ```
+
+### Running with Docker
+
+Build and run a single container (the SQLite file lives in the `/data` volume):
+
+```bash
+docker build -t url-shortener .
+docker run -p 8082:8082 url-shortener
+```
+
+Or with Docker Compose, which persists the database in a named volume:
+
+```bash
+docker compose up --build
+```
+
+The server listens on `0.0.0.0:8082` inside the container; override `HTTP_SERVER_PASSWORD`, `STORAGE_PATH` or `HTTP_SERVER_ADDRESS` via environment variables if needed.
 
 ### Project Structure
 

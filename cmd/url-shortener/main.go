@@ -19,9 +19,12 @@ import (
 	"url-shortener/internal/http-server/handlers/url/save"
 	"url-shortener/internal/http-server/handlers/url/stats"
 	mwLogger "url-shortener/internal/http-server/middleware/logger"
+	"url-shortener/internal/http-server/middleware/ratelimit"
 	"url-shortener/internal/lib/logger/handlers/slogpretty"
 	"url-shortener/internal/lib/logger/sl"
 	"url-shortener/internal/storage/sqlite"
+
+	"golang.org/x/time/rate"
 )
 
 const (
@@ -66,7 +69,8 @@ func main() {
 		r.Get("/{alias}/stats", stats.New(log, storage))
 	})
 
-	router.Get("/{alias}", redirect.New(log, storage))
+	redirectRateLimiter := ratelimit.New(log, rate.Limit(cfg.RateLimit), cfg.RateBurst)
+	router.With(redirectRateLimiter).Get("/{alias}", redirect.New(log, storage))
 
 	log.Info("starting server", slog.String("address", cfg.Address))
 

@@ -22,6 +22,9 @@ type HTTPServer struct {
 	IdleTimeout time.Duration `yaml:"idle_timeout" env-default:"60s"`
 	User        string        `yaml:"user" env-required:"true"`
 	Password    string        `yaml:"password" env-required:"true" env:"HTTP_SERVER_PASSWORD"`
+	// per-IP rate limiting for the public redirect endpoint
+	RateLimit float64 `yaml:"rate_limit" env-default:"10"`
+	RateBurst int     `yaml:"rate_burst" env-default:"20"`
 }
 
 func MustLoad() *Config {

@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Go URL-shortener REST service: create short aliases for URLs (POST /url), redirect GET /{alias} to the original URL, delete them (DELETE /url/{alias}), and read click stats (GET /url/{alias}/stats) — everything under /url is Basic-auth protected. Stack: chi, log/slog, sqlx + SQLite via `modernc.org/sqlite` (pure Go, no CGO).
+Go URL-shortener REST service: create short aliases (POST /url), redirect GET /{alias} to the original URL, delete them (DELETE /url/{alias}), and read click stats (GET /url/{alias}/stats). Save accepts an optional `ttl_seconds` — expired links answer 410 Gone; the public redirect is rate-limited per IP. Endpoints under /url are Basic-auth protected. Stack: chi, log/slog, sqlx + SQLite via `modernc.org/sqlite` (pure Go, no CGO).
 
 ## Module path
 
@@ -26,7 +26,8 @@ go run cmd/url-shortener/main.go   # requires CONFIG_PATH, see below
 - `internal/http-server/handlers/*/mocks/` — generated with `//go:generate go run github.com/vektra/mockery/v2@v2.53.8 --name=<Interface>`. Do not edit by hand.
 - `internal/lib/api/response/` — shared JSON envelope (`status`/`error`) and `ValidationError` formatting; use `resp.OK()` / `resp.Error(...)` / `render.JSON` in handlers.
 - `internal/lib/logger/sl/` — `sl.Err(err)` slog attribute helper; `slogpretty`/`slogdiscard` handlers.
-- `internal/storage/` — sentinel errors `ErrURLNotFound`, `ErrURLExists`; handlers match them with `errors.Is`.
+- `internal/http-server/middleware/` — chi middlewares: request logging (`logger`) and per-IP token-bucket rate limiting (`ratelimit`, config via `http_server.rate_limit`/`rate_burst`).
+- `internal/storage/` — sentinel errors `ErrURLNotFound`, `ErrURLExists` and the `URL` domain struct (`ExpiresAt` is zero for links that never expire); handlers match errors with `errors.Is`.
 - `internal/storage/sqlite/` — `Storage` implementation; `Connect(path)` opens the DB and runs migrations.
 - `tests/` — httpexpect integration tests against a live server at `localhost:8082`.
 
@@ -41,7 +42,7 @@ go run cmd/url-shortener/main.go   # requires CONFIG_PATH, see below
 
 ## Migrations
 
-Hand-rolled versioned migrations, no external tool: `internal/storage/sqlite/migrations/` holds embedded numbered `NNNN_name.sql` files; `migrations.Up(db)` runs on every `sqlite.Connect`, tracks applied file names in the `migrations` table, and applies new ones in order, each in its own transaction. To change the schema, add a new `NNNN_description.sql` file with idempotent SQL (`IF NOT EXISTS`) — never edit an already-shipped migration file. The runner itself creates the `migrations` table; DBs created before version tracking have the schema but an empty table, so all files must stay idempotent.
+Hand-rolled versioned migrations, no external tool: `internal/storage/sqlite/migrations/` holds embedded numbered `NNNN_name.sql` files; `migrations.Up(db)` runs on every `sqlite.Connect`, tracks applied file names in the `migrations` table, and applies new ones in order, each in its own transaction. To change the schema, add a new `NNNN_description.sql` file. Prefer idempotent SQL (`IF NOT EXISTS`) — databases created before version tracking have the schema but an empty migrations table; statements without `IF NOT EXISTS` support (e.g. `ALTER TABLE ADD COLUMN`, see 0003) are safe because application and recording happen in one transaction. Never edit an already-shipped migration file.
 
 ## Tooling
 
@@ -50,5 +51,6 @@ Hand-rolled versioned migrations, no external tool: `internal/storage/sqlite/mig
 
 ## Gotchas
 
-- `tests/` integration tests hit a live server at `localhost:8082` with the credentials from `config/local.yaml` (`admin:admin`) — start the server first or they fail with connection errors. CI does this automatically.
-- `.env.example` is empty and `.env` files are not read by the app; configuration comes only from `CONFIG_PATH` YAML + env overrides.
+- `golang.org/x/time` is pinned to v0.15.0: v0.16.0 declares `go 1.26.0` and silently drags the module's toolchain requirement up. Re-check before bumping.
+- `tests/` integration tests hit a live server at `localhost:8082` with the credentials from `config/local.yaml` (`admin:admin`) — start the server first or they fail with connection errors. CI does this automatically. `TestURLShortener_Expired` sleeps ~2s waiting for a link to expire.
+- `.env.example` is empty and `.env` files are not read by the app; configuration comes only from `CONFIG_PATH` YAML + env overrides (`HTTP_SERVER_PASSWORD`, `HTTP_SERVER_ADDRESS`, `STORAGE_PATH`).
