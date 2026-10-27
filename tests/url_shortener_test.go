@@ -200,6 +200,21 @@ func TestURLShortener_Health(t *testing.T) {
 		Value("status").String().IsEqual("OK")
 }
 
+func TestURLShortener_UI(t *testing.T) {
+	u := url.URL{
+		Scheme: "http",
+		Host:   host,
+	}
+	e := httpexpect.Default(t, u.String())
+
+	index := e.GET("/").Expect().Status(http.StatusOK)
+	index.Header("Content-Type").Contains("text/html")
+	index.Body().Contains("URL Shortener")
+
+	e.GET("/static/style.css").Expect().Status(http.StatusOK)
+	e.GET("/static/app.js").Expect().Status(http.StatusOK)
+}
+
 //nolint:funlen
 func TestURLShortener_LoginAndCRUD(t *testing.T) {
 	u := url.URL{

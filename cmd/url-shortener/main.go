@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"io/fs"
 	"net/http"
 	"os"
 	"os/signal"
@@ -18,6 +19,7 @@ import (
 	"url-shortener/internal/http-server/handlers/login"
 	"url-shortener/internal/http-server/handlers/logout"
 	"url-shortener/internal/http-server/handlers/redirect"
+	"url-shortener/internal/http-server/handlers/ui"
 	urlDelete "url-shortener/internal/http-server/handlers/url/delete"
 	"url-shortener/internal/http-server/handlers/url/list"
 	"url-shortener/internal/http-server/handlers/url/save"
@@ -29,6 +31,7 @@ import (
 	"url-shortener/internal/lib/logger/handlers/slogpretty"
 	"url-shortener/internal/lib/logger/sl"
 	"url-shortener/internal/storage/sqlite"
+	"url-shortener/web"
 
 	"golang.org/x/time/rate"
 )
@@ -82,6 +85,13 @@ func main() {
 	router.With(loginRateLimiter).Post("/login", login.New(log, cfg.User, cfg.Password, cfg.Password))
 	router.Post("/logout", logout.New(log))
 
+	staticFS, err := fs.Sub(web.Static, "static")
+	if err != nil {
+		log.Error("failed to init ui assets", sl.Err(err))
+		os.Exit(1)
+	}
+
+	router.Handle("/static/*", http.StripPrefix("/static/", http.FileServerFS(staticFS)))
 	router.Get("/", ui.New(staticFS))
 
 	redirectRateLimiter := ratelimit.New(log, rate.Limit(cfg.RateLimit), cfg.RateBurst)

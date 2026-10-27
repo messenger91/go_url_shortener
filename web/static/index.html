@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>URL Shortener</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230ea5e9'/%3E%3Ctext x='16' y='22' font-size='16' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='bold'%3E%E2%88%9E%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+  <!-- login view -->
+  <section id="login-view" class="center" hidden>
+    <form id="login-form" class="card login-card" autocomplete="on">
+      <h1>URL Shortener</h1>
+      <p class="muted">Sign in to manage your links</p>
+
+      <label>Username
+        <input id="login-user" name="username" autocomplete="username" required>
+      </label>
+      <label>Password
+        <input id="login-password" name="password" type="password" autocomplete="current-password" required>
+      </label>
+
+      <button type="submit" class="primary">Sign in</button>
+      <p id="login-error" class="error" hidden></p>
+    </form>
+  </section>
+
+  <!-- dashboard view -->
+  <main id="dashboard-view" hidden>
+    <header class="topbar">
+      <h1>URL Shortener</h1>
+      <button id="logout-btn" class="secondary">Log out</button>
+    </header>
+
+    <section class="card">
+      <h2 id="form-title">Create a short link</h2>
+      <form id="link-form" class="link-form">
+        <input id="f-alias" placeholder="alias (optional, e.g. my-link)">
+        <input id="f-url" placeholder="https://target-url.example" required>
+        <input id="f-ttl" type="number" min="0" step="1" placeholder="TTL, sec (optional)">
+        <button type="submit" id="f-submit" class="primary">Create</button>
+        <button type="button" id="f-cancel" class="secondary" hidden>Cancel</button>
+      </form>
+      <p id="form-msg" class="error" hidden></p>
+      <p id="form-ok" class="ok" hidden></p>
+    </section>
+
+    <section class="card">
+      <table>
+        <thead>
+          <tr>
+            <th>Alias</th>
+            <th>Target</th>
+            <th>Expires</th>
+            <th>Visits</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="links-body"></tbody>
+      </table>
+      <p id="empty-list" class="muted" hidden>No links yet — create the first one above.</p>
+    </section>
+
+    <section id="stats-panel" class="card" hidden>
+      <header class="panel-head">
+        <h2 id="stats-title"></h2>
+        <button id="stats-close" class="secondary" aria-label="Close">✕</button>
+      </header>
+      <p id="stats-summary" class="muted"></p>
+      <div id="stats-chart"></div>
+    </section>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

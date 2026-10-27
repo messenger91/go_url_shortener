@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Go URL-shortener REST service: create short aliases (POST /url), redirect GET /{alias} to the original URL, delete them (DELETE /url/{alias}), and read click stats (GET /url/{alias}/stats, optional `days` query param for a per-day UTC breakdown). Save accepts an optional `ttl_seconds` — expired links answer 410 Gone; the public redirect is rate-limited per IP; GET /health probes service and storage. Endpoints under /url are Basic-auth protected. Stack: chi, log/slog, sqlx + SQLite via `modernc.org/sqlite` (pure Go, no CGO).
+Go URL-shortener REST service: create short aliases (POST /url), redirect GET /{alias} to the original URL, delete them (DELETE /url/{alias}), and read click stats (GET /url/{alias}/stats, optional `days` query param for a per-day UTC breakdown). GET /url lists all links and PUT /url/{alias} retargets one, completing the CRUD. An embedded web UI (login form, link CRUD, stats dashboard) is served at `/` with assets from `/static/*`. Save accepts an optional `ttl_seconds` — expired links answer 410 Gone; the public redirect is rate-limited per IP; GET /health probes service and storage. Endpoints under /url accept a session cookie (POST /login, HttpOnly HMAC token signed with the configured password) or basic auth. Stack: chi, log/slog, sqlx + SQLite via `modernc.org/sqlite` (pure Go, no CGO).
 
 ## Module path
 
@@ -22,11 +22,12 @@ go run cmd/url-shortener/main.go   # requires CONFIG_PATH, see below
 
 - `cmd/url-shortener/main.go` — entry point: config, logger setup, chi router wiring, graceful shutdown.
 - `internal/config/` — YAML config via cleanenv. Requires `CONFIG_PATH` env var pointing to a YAML file (e.g. `./config/local.yaml`); `HTTP_SERVER_PASSWORD` env var overrides the password.
-- `internal/http-server/handlers/` — one package per handler. Each handler exposes `New(log, deps...) http.HandlerFunc` and declares a small consumer-side interface (`URLSaver`, `URLGetter`, `URLDeleter`, `URLStatsGetter`, `Pinger`) next to itself.
+- `internal/http-server/handlers/` — one package per handler. Each handler exposes `New(log, deps...) http.HandlerFunc` and declares a small consumer-side interface (`URLSaver`, `URLGetter`, `URLDeleter`, `URLStatsGetter`, `URLLister`, `URLUpdater`, `Pinger`) next to itself.
 - `internal/http-server/handlers/*/mocks/` — generated with `//go:generate go run github.com/vektra/mockery/v2@v2.53.8 --name=<Interface>`. Do not edit by hand.
+- `web/` — the embedded UI: `web.go` holds `//go:embed all:static`; `static/` is vanilla HTML/CSS/JS (no frameworks, no CDN). Assets are compiled into the binary.
 - `internal/lib/api/response/` — shared JSON envelope (`status`/`error`) and `ValidationError` formatting; use `resp.OK()` / `resp.Error(...)` / `render.JSON` in handlers.
 - `internal/lib/logger/sl/` — `sl.Err(err)` slog attribute helper; `slogpretty`/`slogdiscard` handlers.
-- `internal/http-server/middleware/` — chi middlewares: request logging (`logger`) and per-IP token-bucket rate limiting (`ratelimit`, config via `http_server.rate_limit`/`rate_burst`).
+- `internal/http-server/middleware/` — chi middlewares: request logging (`logger`), per-IP token-bucket rate limiting (`ratelimit`, config via `http_server.rate_limit`/`rate_burst`), and session-or-basic authentication (`auth` — mints/validates the UI session cookie and falls back to chi's BasicAuth; the session token is HMAC-signed with the configured password).
 - `internal/storage/` — sentinel errors `ErrURLNotFound`, `ErrURLExists` and the `URL` domain struct (`ExpiresAt` is zero for links that never expire); handlers match errors with `errors.Is`.
 - `internal/storage/sqlite/` — `Storage` implementation; `Connect(path)` opens the DB and runs migrations.
 - `tests/` — httpexpect integration tests against a live server at `localhost:8082`.
@@ -52,6 +53,7 @@ Hand-rolled versioned migrations, no external tool: `internal/storage/sqlite/mig
 ## Gotchas
 
 - `GET /health` is a reserved top-level path: an alias named `health` can be saved but is unreachable — the health endpoint shadows its redirect.
+- `GET /` serves the web UI, so no redirect alias can live at the empty path; `/static/*` is similarly reserved for UI assets.
 - `golang.org/x/time` is pinned to v0.15.0: v0.16.0 declares `go 1.26.0` and silently drags the module's toolchain requirement up. Re-check before bumping.
 - `tests/` integration tests hit a live server at `localhost:8082` with the credentials from `config/local.yaml` (`admin:admin`) — start the server first or they fail with connection errors. CI does this automatically. `TestURLShortener_Expired` sleeps ~2s waiting for a link to expire.
 - `.env.example` is empty and `.env` files are not read by the app; configuration comes only from `CONFIG_PATH` YAML + env overrides (`HTTP_SERVER_PASSWORD`, `HTTP_SERVER_ADDRESS`, `STORAGE_PATH`).

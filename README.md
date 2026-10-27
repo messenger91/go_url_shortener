@@ -6,6 +6,7 @@ A lightweight and efficient URL shortening service built with Go. This service a
 
 - **URL Shortening**: Convert long URLs to short, memorable aliases
 - **Custom Aliases**: Optionally specify custom aliases for your URLs
+- **Web UI**: Embedded admin dashboard (login, link CRUD, click-stat charts) served from the binary — no external assets
 - **Link Expiration (TTL)**: Optionally give links a limited lifetime
 - **Click Statistics**: Count redirects per alias, with a per-day breakdown, via the stats endpoint
 - **Rate Limiting**: Per-IP token bucket on the public redirect endpoint
@@ -225,6 +226,20 @@ Public, unauthenticated and rate-limit-exempt endpoint that verifies the service
 #### Response
 - 200 OK: `{"status": "OK"}` — service and storage are healthy
 - 503 Service Unavailable: storage is unreachable
+
+### Authentication
+
+**POST** `/login` with `{"user": "...", "password": "..."}` verifies the configured credentials (default `admin:admin` from `config/local.yaml`) and sets an HttpOnly session cookie valid for 24 hours. The cookie authenticates the web UI and every `/url` endpoint (basic auth keeps working for API clients). **POST** `/logout` clears the cookie. Failed logins are subject to the same per-IP rate limit as redirects.
+
+### Web UI
+
+**GET** `/` serves an embedded single-page admin UI (HTML/CSS/JS compiled into the binary via `go:embed`, no external dependencies):
+
+- **Login form** — default credentials `admin` / `admin` (from `config/local.yaml`)
+- **Link CRUD** — create (with optional alias and TTL), edit target/TTL, delete, plus the full list with visit counts
+- **Dashboard** — per-link click statistics with a 30-day bar chart, powered by the stats endpoint
+
+Static assets are served from `/static/*`; everything is served by the same process — no reverse proxy or CDN required.
 
 ## Development
 
