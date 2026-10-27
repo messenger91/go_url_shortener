@@ -24,3 +24,11 @@ type VisitsByDay struct {
 	Date  string
 	Count int64
 }
+
+// URLListItem is a stored link with its total visit count, for listings.
+type URLListItem struct {
+	URL       string
+	Alias     string
+	ExpiresAt time.Time
+	Visits    int64
+}

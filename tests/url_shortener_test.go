@@ -200,6 +200,98 @@ func TestURLShortener_Health(t *testing.T) {
 		Value("status").String().IsEqual("OK")
 }
 
+//nolint:funlen
+func TestURLShortener_LoginAndCRUD(t *testing.T) {
+	u := url.URL{
+		Scheme: "http",
+		Host:   host,
+	}
+	e := httpexpect.Default(t, u.String())
+
+	// anonymous requests get a JSON 401 without WWW-Authenticate
+	e.GET("/url").
+		Expect().
+		Status(http.StatusUnauthorized).
+		JSON().Object().
+		Value("error").String().IsEqual("unauthorized")
+
+	// wrong credentials are rejected
+	e.POST("/login").
+		WithJSON(map[string]string{"user": "admin", "password": "wrong"}).
+		Expect().
+		Status(http.StatusUnauthorized)
+
+	// login with the default admin:admin issues a session cookie
+	session := e.POST("/login").
+		WithJSON(map[string]string{"user": "admin", "password": "admin"}).
+		Expect().
+		Status(http.StatusOK).
+		Cookie("session").Value().Raw()
+
+	targetURL := gofakeit.URL()
+	alias := random.NewRandomString(10)
+
+	// create via session cookie
+	e.POST("/url").
+		WithCookie("session", session).
+		WithJSON(save.Request{
+			URL:   targetURL,
+			Alias: alias,
+		}).
+		Expect().
+		Status(http.StatusOK)
+
+	// the list contains the new link with zero visits
+	items := e.GET("/url").
+		WithCookie("session", session).
+		Expect().
+		Status(http.StatusOK).
+		JSON().Object().Value("items").Array()
+
+	found := false
+	for i := 0; i < int(items.Length().Raw()); i++ {
+		it := items.Value(i).Object()
+		if it.Value("alias").String().Raw() == alias {
+			found = true
+			it.Value("url").String().IsEqual(targetURL)
+			it.Value("visits").Number().IsEqual(0)
+		}
+	}
+	require.True(t, found)
+
+	// update retargets the link and gives it a TTL
+	newTarget := gofakeit.URL()
+	e.PUT("/url/"+alias).
+		WithCookie("session", session).
+		WithJSON(map[string]any{"url": newTarget, "ttl_seconds": 3600}).
+		Expect().
+		Status(http.StatusOK)
+
+	testRedirect(t, alias, newTarget)
+
+	e.GET("/url/"+alias+"/stats").
+		WithCookie("session", session).
+		Expect().
+		Status(http.StatusOK).
+		JSON().Object().
+		Value("expires_at").String().NotEmpty()
+
+	// delete
+	e.DELETE("/url/"+alias).
+		WithCookie("session", session).
+		Expect().
+		Status(http.StatusOK)
+
+	e.GET("/" + alias).
+		Expect().
+		Status(http.StatusNotFound)
+
+	// logout clears the session
+	e.POST("/logout").
+		Expect().
+		Status(http.StatusOK)
+}
+
 func TestURLShortener_Expired(t *testing.T) {
 	alias := random.NewRandomString(10)
 

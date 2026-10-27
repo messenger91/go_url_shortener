@@ -164,6 +164,83 @@ func (s *Storage) GetVisitsCount(alias string) (int64, error) {
 	return count, nil
 }
 
+// ListURLs returns all stored links with their total visit counts, newest first.
+func (s *Storage) ListURLs() ([]storage.URLListItem, error) {
+	const op = "storage.sqlite.ListURLs"
+
+	stmt, err := s.db.Prepare(`
+		SELECT u.url, u.alias, u.expires_at, COALESCE(v.count, 0)
+		FROM url u
+		LEFT JOIN (SELECT alias, COUNT(*) AS count FROM visits GROUP BY alias) v ON v.alias = u.alias
+		ORDER BY u.id DESC
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("%s: prepare statement: %w", op, err)
+	}
+
+	rows, err := stmt.Query()
+	if err != nil {
+		return nil, fmt.Errorf("%s: execute statement: %w", op, err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var res []storage.URLListItem
+	for rows.Next() {
+		var (
+			item        storage.URLListItem
+			expiresNull sql.NullTime
+		)
+
+		if err := rows.Scan(&item.URL, &item.Alias, &expiresNull, &item.Visits); err != nil {
+			return nil, fmt.Errorf("%s: scan row: %w", op, err)
+		}
+
+		if expiresNull.Valid {
+			item.ExpiresAt = expiresNull.Time
+		}
+
+		res = append(res, item)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("%s: iterate rows: %w", op, err)
+	}
+
+	return res, nil
+}
+
+// UpdateURL replaces the target URL and expiry of an existing link. A zero
+// expiresAt clears the expiration; unknown aliases yield ErrURLNotFound.
+func (s *Storage) UpdateURL(alias string, urlToSave string, expiresAt time.Time) error {
+	const op = "storage.sqlite.UpdateURL"
+
+	var expiresArg any
+	if !expiresAt.IsZero() {
+		expiresArg = expiresAt
+	}
+
+	stmt, err := s.db.Prepare("UPDATE url SET url = ?, expires_at = ?, updated_at = CURRENT_TIMESTAMP WHERE alias = ?")
+	if err != nil {
+		return fmt.Errorf("%s: prepare statement: %w", op, err)
+	}
+
+	res, err := stmt.Exec(urlToSave, expiresArg, alias)
+	if err != nil {
+		return fmt.Errorf("%s: execute statement: %w", op, err)
+	}
+
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("%s: get affected rows: %w", op, err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("%s: %w", op, storage.ErrURLNotFound)
+	}
+
+	return nil
+}
+
 // GetVisitsByDay returns the per-day visit counts for the last days calendar
 // days, UTC-based, oldest first. Days without visits are reported with zero
 // counts, so the result always has exactly days entries.

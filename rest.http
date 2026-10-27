@@ -33,3 +33,26 @@ Authorization: {{authorization}}
   "url": "https://github.com/messenger91",
   "ttl_seconds": 3600
 }
+
+### Login (sets session cookie)
+POST {{host}}/login
+Content-Type: {{contentType}}
+
+{
+  "user": "admin",
+  "password": "admin"
+}
+
+### List all links
+GET {{host}}/url
+Authorization: {{authorization}}
+
+### Update a link
+PUT {{host}}/url/mylink
+Content-Type: {{contentType}}
+Authorization: {{authorization}}
+
+{
+  "url": "https://github.com/messenger91",
+  "ttl_seconds": 3600
+}

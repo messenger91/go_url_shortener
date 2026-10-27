@@ -15,10 +15,15 @@ import (
 
 	"url-shortener/internal/config"
 	"url-shortener/internal/http-server/handlers/health"
+	"url-shortener/internal/http-server/handlers/login"
+	"url-shortener/internal/http-server/handlers/logout"
 	"url-shortener/internal/http-server/handlers/redirect"
 	urlDelete "url-shortener/internal/http-server/handlers/url/delete"
+	"url-shortener/internal/http-server/handlers/url/list"
 	"url-shortener/internal/http-server/handlers/url/save"
 	"url-shortener/internal/http-server/handlers/url/stats"
+	urlUpdate "url-shortener/internal/http-server/handlers/url/update"
+	mwAuth "url-shortener/internal/http-server/middleware/auth"
 	mwLogger "url-shortener/internal/http-server/middleware/logger"
 	"url-shortener/internal/http-server/middleware/ratelimit"
 	"url-shortener/internal/lib/logger/handlers/slogpretty"
@@ -61,14 +66,23 @@ func main() {
 	router.Use(middleware.URLFormat)
 
 	router.Route("/url", func(r chi.Router) {
-		r.Use(middleware.BasicAuth("url-shortener", map[string]string{
+		// the web UI authenticates with a session cookie, API clients with basic auth
+		r.Use(mwAuth.SessionOrBasic(cfg.Password, "url-shortener", map[string]string{
 			cfg.User: cfg.Password,
 		}))
 
 		r.Post("/", save.New(log, storage, cfg.AliasLength))
+		r.Get("/", list.New(log, storage))
+		r.Put("/{alias}", urlUpdate.New(log, storage))
 		r.Delete("/{alias}", urlDelete.New(log, storage))
 		r.Get("/{alias}/stats", stats.New(log, storage))
 	})
+
+	loginRateLimiter := ratelimit.New(log, rate.Limit(cfg.RateLimit), cfg.RateBurst)
+	router.With(loginRateLimiter).Post("/login", login.New(log, cfg.User, cfg.Password, cfg.Password))
+	router.Post("/logout", logout.New(log))
+
+	router.Get("/", ui.New(staticFS))
 
 	redirectRateLimiter := ratelimit.New(log, rate.Limit(cfg.RateLimit), cfg.RateBurst)
 	router.With(redirectRateLimiter).Get("/{alias}", redirect.New(log, storage))

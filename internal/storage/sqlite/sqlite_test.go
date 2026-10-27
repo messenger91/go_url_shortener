@@ -44,6 +44,17 @@ func TestStorage(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, got.ExpiresAt.Before(time.Now()))
 
+	// update replaces the target and the expiry; unknown aliases are not found
+	require.NoError(t, st.UpdateURL("expired_alias", "https://example.com/updated", time.Time{}))
+
+	got, err = st.GetURL("expired_alias")
+	require.NoError(t, err)
+	require.Equal(t, "https://example.com/updated", got.URL)
+	require.True(t, got.ExpiresAt.IsZero())
+
+	err = st.UpdateURL("missing_alias", "https://example.com/x", time.Time{})
+	require.ErrorIs(t, err, storage.ErrURLNotFound)
+
 	// visits are recorded per redirect; unknown aliases are allowed and
 	// become orphans when the URL is deleted
 	require.NoError(t, st.RecordVisit(testAlias))
@@ -61,6 +72,16 @@ func TestStorage(t *testing.T) {
 	require.Len(t, byDay, 7)
 	require.Equal(t, int64(2), byDay[6].Count)
 	require.Equal(t, time.Now().UTC().Format("2006-01-02"), byDay[6].Date)
+
+	// the listing carries visit counts and the newest links first
+	items, err := st.ListURLs()
+	require.NoError(t, err)
+	require.Len(t, items, 2)
+	require.Equal(t, "expired_alias", items[0].Alias)
+	require.Equal(t, "https://example.com/updated", items[0].URL)
+	require.Equal(t, int64(0), items[0].Visits)
+	require.Equal(t, testAlias, items[1].Alias)
+	require.Equal(t, int64(2), items[1].Visits)
 
 	require.NoError(t, st.DeleteURL(testAlias))
 
