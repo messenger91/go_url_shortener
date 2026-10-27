@@ -36,6 +36,9 @@ func TestRedirectHandler(t *testing.T) {
 			if tc.respError == "" || tc.mockError != nil {
 				urlGetterMock.On("GetURL", tc.alias).
 					Return(tc.url, tc.mockError).Once()
+
+				urlGetterMock.On("RecordVisit", tc.alias).
+					Return(tc.mockError).Once()
 			}
 
 			r := chi.NewRouter()

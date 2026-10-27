@@ -17,6 +17,7 @@ import (
 	"url-shortener/internal/http-server/handlers/redirect"
 	urlDelete "url-shortener/internal/http-server/handlers/url/delete"
 	"url-shortener/internal/http-server/handlers/url/save"
+	"url-shortener/internal/http-server/handlers/url/stats"
 	mwLogger "url-shortener/internal/http-server/middleware/logger"
 	"url-shortener/internal/lib/logger/handlers/slogpretty"
 	"url-shortener/internal/lib/logger/sl"
@@ -57,11 +58,12 @@ func main() {
 
 	router.Route("/url", func(r chi.Router) {
 		r.Use(middleware.BasicAuth("url-shortener", map[string]string{
-			cfg.HTTPServer.User: cfg.HTTPServer.Password,
+			cfg.User: cfg.Password,
 		}))
 
 		r.Post("/", save.New(log, storage, cfg.AliasLength))
 		r.Delete("/{alias}", urlDelete.New(log, storage))
+		r.Get("/{alias}/stats", stats.New(log, storage))
 	})
 
 	router.Get("/{alias}", redirect.New(log, storage))
@@ -74,9 +76,9 @@ func main() {
 	srv := &http.Server{
 		Addr:         cfg.Address,
 		Handler:      router,
-		ReadTimeout:  cfg.HTTPServer.Timeout,
-		WriteTimeout: cfg.HTTPServer.Timeout,
-		IdleTimeout:  cfg.HTTPServer.IdleTimeout,
+		ReadTimeout:  cfg.Timeout,
+		WriteTimeout: cfg.Timeout,
+		IdleTimeout:  cfg.IdleTimeout,
 	}
 
 	go func() {

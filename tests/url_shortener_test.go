@@ -40,11 +40,11 @@ func TestURLShortener_HappyPath(t *testing.T) {
 //nolint:funlen
 func TestURLShortener_SaveRedirect(t *testing.T) {
 	testCases := []struct {
-		name    string
-		url     string
-		alias   string
-		error   string
-		status  int
+		name   string
+		url    string
+		alias  string
+		error  string
+		status int
 	}{
 		{
 			name:   "Valid URL",
@@ -124,4 +124,42 @@ func testRedirect(t *testing.T, alias string, urlToRedirect string) {
 	require.NoError(t, err)
 
 	require.Equal(t, urlToRedirect, redirectedToURL)
+}
+
+func TestURLShortener_Stats(t *testing.T) {
+	targetURL := gofakeit.URL()
+	alias := random.NewRandomString(10)
+
+	u := url.URL{
+		Scheme: "http",
+		Host:   host,
+	}
+	e := httpexpect.Default(t, u.String())
+
+	e.POST("/url").
+		WithJSON(save.Request{
+			URL:   targetURL,
+			Alias: alias,
+		}).
+		WithBasicAuth("admin", "admin").
+		Expect().
+		Status(http.StatusOK)
+
+	// the redirect above must be counted as a visit
+	testRedirect(t, alias, targetURL)
+
+	stats := e.GET("/url/"+alias+"/stats").
+		WithBasicAuth("admin", "admin").
+		Expect().
+		Status(http.StatusOK).
+		JSON().Object()
+
+	stats.Value("alias").String().IsEqual(alias)
+	stats.Value("url").String().IsEqual(targetURL)
+	stats.Value("visits").Number().IsEqual(1)
+
+	e.GET("/url/"+random.NewRandomString(10)+"/stats").
+		WithBasicAuth("admin", "admin").
+		Expect().
+		Status(http.StatusNotFound)
 }

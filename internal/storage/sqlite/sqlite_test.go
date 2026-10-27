@@ -32,6 +32,16 @@ func TestStorage(t *testing.T) {
 	_, err = st.SaveURL("https://example.com/other", testAlias)
 	require.ErrorIs(t, err, storage.ErrURLExists)
 
+	// visits are recorded per redirect; unknown aliases are allowed and
+	// become orphans when the URL is deleted
+	require.NoError(t, st.RecordVisit(testAlias))
+	require.NoError(t, st.RecordVisit(testAlias))
+	require.NoError(t, st.RecordVisit("unknown_alias"))
+
+	count, err := st.GetVisitsCount(testAlias)
+	require.NoError(t, err)
+	require.Equal(t, int64(2), count)
+
 	require.NoError(t, st.DeleteURL(testAlias))
 
 	_, err = st.GetURL(testAlias)

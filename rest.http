@@ -19,3 +19,7 @@ GET http://localhost:8082/IeDpBFZv
 ### Delete alias
 DELETE {{host}}/url/IeDpBFZv
 Authorization: {{authorization}}
+
+### Get alias stats
+GET {{host}}/url/IeDpBFZv/stats
+Authorization: {{authorization}}

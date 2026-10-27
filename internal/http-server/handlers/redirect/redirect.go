@@ -15,9 +15,10 @@ import (
 	"url-shortener/internal/storage"
 )
 
-//go:generate go run github.com/vektra/mockery/v2@v2.28.2 --name=URLGetter
+//go:generate go run github.com/vektra/mockery/v2@v2.53.8 --name=URLGetter
 type URLGetter interface {
 	GetURL(alias string) (string, error)
+	RecordVisit(alias string) error
 }
 
 func New(log *slog.Logger, urlGetter URLGetter) http.HandlerFunc {
@@ -58,6 +59,11 @@ func New(log *slog.Logger, urlGetter URLGetter) http.HandlerFunc {
 		}
 
 		log.Info("got url", slog.String("url", resURL))
+
+		// a failed visit record must not break the redirect
+		if err := urlGetter.RecordVisit(alias); err != nil {
+			log.Error("failed to record visit", sl.Err(err))
+		}
 
 		// redirect to found url
 		http.Redirect(w, r, resURL, http.StatusFound)

@@ -169,6 +169,33 @@ curl -X DELETE http://localhost:8082/url/mylink \
 - 404 Not Found: Alias not found
 - 500 Internal Server Error: Database error
 
+### Get URL Statistics
+
+**GET** `/url/{alias}/stats`
+
+Returns the original URL and the number of redirects recorded for the alias. Every successful `GET /{alias}` redirect is counted as a visit. Requires basic authentication.
+
+#### Example Request
+```bash
+curl http://localhost:8082/url/mylink/stats \
+  -H "Authorization: Basic $(echo -n 'admin:admin' | base64)"
+```
+
+#### Response
+Success (200 OK):
+```json
+{
+  "status": "OK",
+  "alias": "mylink",
+  "url": "https://www.example.com/very/long/url/to/be/shortened",
+  "visits": 42
+}
+```
+
+Error responses:
+- 404 Not Found: Alias not found
+- 500 Internal Server Error: Database error
+
 ## Development
 
 ### Running Tests
@@ -192,7 +219,8 @@ go test ./...
 │   │   ├── handlers/          # Request handlers
 │   │   │   ├── url/
 │   │   │   │   ├── save/      # Save URL handler
-│   │   │   │   └── delete/    # Delete URL handler
+│   │   │   │   ├── delete/    # Delete URL handler
+│   │   │   │   └── stats/     # URL stats handler
 │   │   │   └── redirect/      # Redirect handler
 │   │   └── middleware/        # HTTP middleware
 │   ├── lib/                   # Utility libraries

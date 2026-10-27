@@ -112,6 +112,39 @@ func (s *Storage) DeleteURL(alias string) error {
 	return nil
 }
 
+func (s *Storage) RecordVisit(alias string) error {
+	const op = "storage.sqlite.RecordVisit"
+
+	stmt, err := s.db.Prepare("INSERT INTO visits(alias) VALUES(?)")
+	if err != nil {
+		return fmt.Errorf("%s: prepare statement: %w", op, err)
+	}
+
+	if _, err := stmt.Exec(alias); err != nil {
+		return fmt.Errorf("%s: execute statement: %w", op, err)
+	}
+
+	return nil
+}
+
+func (s *Storage) GetVisitsCount(alias string) (int64, error) {
+	const op = "storage.sqlite.GetVisitsCount"
+
+	stmt, err := s.db.Prepare("SELECT COUNT(*) FROM visits WHERE alias = ?")
+	if err != nil {
+		return 0, fmt.Errorf("%s: prepare statement: %w", op, err)
+	}
+
+	var count int64
+
+	err = stmt.QueryRow(alias).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("%s: execute statement: %w", op, err)
+	}
+
+	return count, nil
+}
+
 // isUniqueViolation reports whether err is a SQLite UNIQUE constraint failure,
 // e.g. saving a URL with an alias that already exists.
 func isUniqueViolation(err error) bool {
