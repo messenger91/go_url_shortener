@@ -18,11 +18,13 @@ import (
 	"url-shortener/internal/storage"
 )
 
+//nolint:funlen
 func TestSaveHandler(t *testing.T) {
 	cases := []struct {
 		name      string
 		alias     string
 		url       string
+		ttl       int
 		respError string
 		status    int
 		mockError error
@@ -40,6 +42,13 @@ func TestSaveHandler(t *testing.T) {
 			status: http.StatusOK,
 		},
 		{
+			name:   "With TTL",
+			alias:  "test_alias",
+			url:    "https://google.com",
+			ttl:    3600,
+			status: http.StatusOK,
+		},
+		{
 			name:      "Empty URL",
 			url:       "",
 			alias:     "some_alias",
@@ -51,6 +60,14 @@ func TestSaveHandler(t *testing.T) {
 			url:       "some invalid URL",
 			alias:     "some_alias",
 			respError: "field URL is not a valid URL",
+			status:    http.StatusBadRequest,
+		},
+		{
+			name:      "Invalid TTL",
+			url:       "https://google.com",
+			alias:     "test_alias",
+			ttl:       -5,
+			respError: "field TTL must be greater than 0",
 			status:    http.StatusBadRequest,
 		},
 		{
@@ -80,14 +97,14 @@ func TestSaveHandler(t *testing.T) {
 			urlSaverMock := mocks.NewURLSaver(t)
 
 			if tc.respError == "" || tc.mockError != nil {
-				urlSaverMock.On("SaveURL", tc.url, mock.AnythingOfType("string")).
+				urlSaverMock.On("SaveURL", tc.url, mock.AnythingOfType("string"), mock.AnythingOfType("time.Time")).
 					Return(int64(1), tc.mockError).
 					Once()
 			}
 
 			handler := save.New(slogdiscard.NewDiscardLogger(), urlSaverMock, 8)
 
-			input := fmt.Sprintf(`{"url": "%s", "alias": "%s"}`, tc.url, tc.alias)
+			input := fmt.Sprintf(`{"url": "%s", "alias": "%s", "ttl_seconds": %d}`, tc.url, tc.alias, tc.ttl)
 
 			req, err := http.NewRequest(http.MethodPost, "/save", bytes.NewReader([]byte(input)))
 			require.NoError(t, err)

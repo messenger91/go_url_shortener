@@ -2,9 +2,9 @@ package redirect
 
 import (
 	"errors"
-	"net/http"
-
 	"log/slog"
+	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -17,7 +17,7 @@ import (
 
 //go:generate go run github.com/vektra/mockery/v2@v2.53.8 --name=URLGetter
 type URLGetter interface {
-	GetURL(alias string) (string, error)
+	GetURL(alias string) (storage.URL, error)
 	RecordVisit(alias string) error
 }
 
@@ -40,7 +40,7 @@ func New(log *slog.Logger, urlGetter URLGetter) http.HandlerFunc {
 			return
 		}
 
-		resURL, err := urlGetter.GetURL(alias)
+		storedURL, err := urlGetter.GetURL(alias)
 		if errors.Is(err, storage.ErrURLNotFound) {
 			log.Info("url not found", "alias", alias)
 
@@ -58,7 +58,19 @@ func New(log *slog.Logger, urlGetter URLGetter) http.HandlerFunc {
 			return
 		}
 
-		log.Info("got url", slog.String("url", resURL))
+		if !storedURL.ExpiresAt.IsZero() && time.Now().After(storedURL.ExpiresAt) {
+			log.Info("url expired",
+				slog.String("alias", alias),
+				slog.Time("expires_at", storedURL.ExpiresAt),
+			)
+
+			render.Status(r, http.StatusGone)
+			render.JSON(w, r, resp.Error("url expired"))
+
+			return
+		}
+
+		log.Info("got url", slog.String("url", storedURL.URL))
 
 		// a failed visit record must not break the redirect
 		if err := urlGetter.RecordVisit(alias); err != nil {
@@ -66,6 +78,6 @@ func New(log *slog.Logger, urlGetter URLGetter) http.HandlerFunc {
 		}
 
 		// redirect to found url
-		http.Redirect(w, r, resURL, http.StatusFound)
+		http.Redirect(w, r, storedURL.URL, http.StatusFound)
 	}
 }

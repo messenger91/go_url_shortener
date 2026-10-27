@@ -69,7 +69,7 @@ func TestStatsHandler(t *testing.T) {
 			statsGetterMock := mocks.NewURLStatsGetter(t)
 
 			statsGetterMock.On("GetURL", tc.alias).
-				Return(tc.url, tc.urlError).Once()
+				Return(storage.URL{URL: tc.url, Alias: tc.alias}, tc.urlError).Once()
 
 			// the count is only requested for URLs that were found
 			if tc.urlError == nil {

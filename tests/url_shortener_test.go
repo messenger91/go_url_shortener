@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/url"
 	"testing"
+	"time"
 
 	"github.com/brianvoe/gofakeit/v6"
 	"github.com/gavv/httpexpect/v2"
@@ -162,4 +163,43 @@ func TestURLShortener_Stats(t *testing.T) {
 		WithBasicAuth("admin", "admin").
 		Expect().
 		Status(http.StatusNotFound)
+}
+
+func TestURLShortener_Expired(t *testing.T) {
+	alias := random.NewRandomString(10)
+
+	u := url.URL{
+		Scheme: "http",
+		Host:   host,
+	}
+	e := httpexpect.Default(t, u.String())
+
+	e.POST("/url").
+		WithJSON(save.Request{
+			URL:   gofakeit.URL(),
+			Alias: alias,
+			TTL:   1, // one second
+		}).
+		WithBasicAuth("admin", "admin").
+		Expect().
+		Status(http.StatusOK)
+
+	// wait for the link to expire
+	time.Sleep(2 * time.Second)
+
+	e.GET("/" + alias).
+		Expect().
+		Status(http.StatusGone).
+		JSON().Object().
+		Value("error").String().IsEqual("url expired")
+
+	// an expired link is still visible in the stats
+	stats := e.GET("/url/"+alias+"/stats").
+		WithBasicAuth("admin", "admin").
+		Expect().
+		Status(http.StatusOK).
+		JSON().Object()
+
+	stats.Value("visits").Number().IsEqual(0)
+	stats.Value("expires_at").String().NotEmpty()
 }

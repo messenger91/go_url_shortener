@@ -5,6 +5,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/render"
@@ -19,6 +20,8 @@ import (
 type Request struct {
 	URL   string `json:"url" validate:"required,url"`
 	Alias string `json:"alias,omitempty"`
+	// TTL in seconds; 0 means the link never expires
+	TTL int `json:"ttl_seconds,omitempty" validate:"omitempty,gt=0"`
 }
 
 type Response struct {
@@ -28,7 +31,7 @@ type Response struct {
 
 //go:generate go run github.com/vektra/mockery/v2@v2.53.8 --name=URLSaver
 type URLSaver interface {
-	SaveURL(urlToSave string, alias string) (int64, error)
+	SaveURL(urlToSave string, alias string, expiresAt time.Time) (int64, error)
 }
 
 func New(log *slog.Logger, urlSaver URLSaver, aliasLength int) http.HandlerFunc {
@@ -79,7 +82,12 @@ func New(log *slog.Logger, urlSaver URLSaver, aliasLength int) http.HandlerFunc 
 			alias = random.NewRandomString(aliasLength)
 		}
 
-		id, err := urlSaver.SaveURL(req.URL, alias)
+		var expiresAt time.Time
+		if req.TTL > 0 {
+			expiresAt = time.Now().Add(time.Duration(req.TTL) * time.Second)
+		}
+
+		id, err := urlSaver.SaveURL(req.URL, alias, expiresAt)
 		if errors.Is(err, storage.ErrURLExists) {
 			log.Info("url already exists", slog.String("url", req.URL))
 

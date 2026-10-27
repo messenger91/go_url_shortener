@@ -23,3 +23,13 @@ Authorization: {{authorization}}
 ### Get alias stats
 GET {{host}}/url/IeDpBFZv/stats
 Authorization: {{authorization}}
+
+### Create temporary alias (expires in 1 hour)
+POST {{host}}/url
+Content-Type: {{contentType}}
+Authorization: {{authorization}}
+
+{
+  "url": "https://github.com/messenger91",
+  "ttl_seconds": 3600
+}

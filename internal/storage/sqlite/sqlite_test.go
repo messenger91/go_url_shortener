@@ -3,6 +3,7 @@ package sqlite_test
 import (
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -21,16 +22,27 @@ func TestStorage(t *testing.T) {
 		testAlias = "test_alias"
 	)
 
-	id, err := st.SaveURL(testURL, testAlias)
+	id, err := st.SaveURL(testURL, testAlias, time.Time{})
 	require.NoError(t, err)
 	require.NotZero(t, id)
 
 	gotURL, err := st.GetURL(testAlias)
 	require.NoError(t, err)
-	require.Equal(t, testURL, gotURL)
+	require.Equal(t, testURL, gotURL.URL)
+	require.True(t, gotURL.ExpiresAt.IsZero())
 
-	_, err = st.SaveURL("https://example.com/other", testAlias)
+	_, err = st.SaveURL("https://example.com/other", testAlias, time.Time{})
 	require.ErrorIs(t, err, storage.ErrURLExists)
+
+	// an already-passed expiry time round-trips through the DB
+	past := time.Now().Add(-time.Minute)
+
+	_, err = st.SaveURL("https://example.com/expired", "expired_alias", past)
+	require.NoError(t, err)
+
+	got, err := st.GetURL("expired_alias")
+	require.NoError(t, err)
+	require.True(t, got.ExpiresAt.Before(time.Now()))
 
 	// visits are recorded per redirect; unknown aliases are allowed and
 	// become orphans when the URL is deleted

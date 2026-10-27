@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -16,15 +17,16 @@ import (
 
 //go:generate go run github.com/vektra/mockery/v2@v2.53.8 --name=URLStatsGetter
 type URLStatsGetter interface {
-	GetURL(alias string) (string, error)
+	GetURL(alias string) (storage.URL, error)
 	GetVisitsCount(alias string) (int64, error)
 }
 
 type Response struct {
 	resp.Response
-	Alias  string `json:"alias,omitempty"`
-	URL    string `json:"url,omitempty"`
-	Visits int64  `json:"visits"`
+	Alias     string     `json:"alias,omitempty"`
+	URL       string     `json:"url,omitempty"`
+	Visits    int64      `json:"visits"`
+	ExpiresAt *time.Time `json:"expires_at,omitempty"`
 }
 
 func New(log *slog.Logger, urlStatsGetter URLStatsGetter) http.HandlerFunc {
@@ -46,7 +48,7 @@ func New(log *slog.Logger, urlStatsGetter URLStatsGetter) http.HandlerFunc {
 			return
 		}
 
-		resURL, err := urlStatsGetter.GetURL(alias)
+		storedURL, err := urlStatsGetter.GetURL(alias)
 		if errors.Is(err, storage.ErrURLNotFound) {
 			log.Info("url not found", slog.String("alias", alias))
 
@@ -76,11 +78,17 @@ func New(log *slog.Logger, urlStatsGetter URLStatsGetter) http.HandlerFunc {
 
 		log.Info("got url stats", slog.String("alias", alias), slog.Int64("visits", visits))
 
-		render.JSON(w, r, Response{
+		response := Response{
 			Response: resp.OK(),
 			Alias:    alias,
-			URL:      resURL,
+			URL:      storedURL.URL,
 			Visits:   visits,
-		})
+		}
+
+		if !storedURL.ExpiresAt.IsZero() {
+			response.ExpiresAt = &storedURL.ExpiresAt
+		}
+
+		render.JSON(w, r, response)
 	}
 }

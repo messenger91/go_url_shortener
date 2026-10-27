@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"url-shortener/internal/storage"
 	"url-shortener/internal/storage/sqlite/migrations"
@@ -37,18 +38,24 @@ func Connect(path string) (*Storage, error) {
 	return &Storage{db}, nil
 }
 
-func (s *Storage) SaveURL(urlToSave string, alias string) (int64, error) {
+func (s *Storage) SaveURL(urlToSave string, alias string, expiresAt time.Time) (int64, error) {
 	const op = "storage.sqlite.SaveURL"
 
 	// insert url
-	stmt, err := s.db.Prepare("INSERT INTO url(url, alias) VALUES(?, ?)")
+	stmt, err := s.db.Prepare("INSERT INTO url(url, alias, expires_at) VALUES(?, ?, ?)")
 
 	if err != nil {
 		return 0, fmt.Errorf("%s: prepare statement: %w", op, err)
 	}
 
+	// a zero time means the link never expires and must be stored as NULL
+	var expiresArg any
+	if !expiresAt.IsZero() {
+		expiresArg = expiresAt
+	}
+
 	// exec query
-	res, err := stmt.Exec(urlToSave, alias)
+	res, err := stmt.Exec(urlToSave, alias, expiresArg)
 	if err != nil {
 		if isUniqueViolation(err) {
 			return 0, fmt.Errorf("%s: %w", op, storage.ErrURLExists)
@@ -65,26 +72,38 @@ func (s *Storage) SaveURL(urlToSave string, alias string) (int64, error) {
 	return id, nil
 }
 
-func (s *Storage) GetURL(alias string) (string, error) {
+func (s *Storage) GetURL(alias string) (storage.URL, error) {
 	const op = "storage.sqlite.GetURL"
 
-	stmt, err := s.db.Prepare("SELECT url FROM url WHERE alias = ?")
+	stmt, err := s.db.Prepare("SELECT url, expires_at FROM url WHERE alias = ?")
 	if err != nil {
-		return "", fmt.Errorf("%s: prepare statement: %w", op, err)
+		return storage.URL{}, fmt.Errorf("%s: prepare statement: %w", op, err)
 	}
 
-	var resURL string
+	var (
+		resURL      string
+		expiresNull sql.NullTime
+	)
 
-	err = stmt.QueryRow(alias).Scan(&resURL)
+	err = stmt.QueryRow(alias).Scan(&resURL, &expiresNull)
 	if errors.Is(err, sql.ErrNoRows) {
-		return "", storage.ErrURLNotFound
+		return storage.URL{}, storage.ErrURLNotFound
 	}
 
 	if err != nil {
-		return "", fmt.Errorf("%s: execute statement: %w", op, err)
+		return storage.URL{}, fmt.Errorf("%s: execute statement: %w", op, err)
 	}
 
-	return resURL, nil
+	res := storage.URL{
+		URL:   resURL,
+		Alias: alias,
+	}
+
+	if expiresNull.Valid {
+		res.ExpiresAt = expiresNull.Time
+	}
+
+	return res, nil
 }
 
 func (s *Storage) DeleteURL(alias string) error {

@@ -1,8 +1,10 @@
 package redirect_test
 
 import (
+	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
@@ -12,6 +14,7 @@ import (
 	"url-shortener/internal/http-server/handlers/redirect/mocks"
 	"url-shortener/internal/lib/api"
 	"url-shortener/internal/lib/logger/handlers/slogdiscard"
+	"url-shortener/internal/storage"
 )
 
 func TestRedirectHandler(t *testing.T) {
@@ -19,13 +22,21 @@ func TestRedirectHandler(t *testing.T) {
 		name      string
 		alias     string
 		url       string
-		respError string
-		mockError error
+		expiresAt time.Time
+		status    int
 	}{
 		{
-			name:  "Success",
-			alias: "test_alias",
-			url:   "https://www.google.com/",
+			name:   "Success",
+			alias:  "test_alias",
+			url:    "https://www.google.com/",
+			status: http.StatusFound,
+		},
+		{
+			name:      "Expired",
+			alias:     "test_alias",
+			url:       "https://www.google.com/",
+			expiresAt: time.Now().Add(-time.Hour),
+			status:    http.StatusGone,
 		},
 	}
 
@@ -33,12 +44,17 @@ func TestRedirectHandler(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			urlGetterMock := mocks.NewURLGetter(t)
 
-			if tc.respError == "" || tc.mockError != nil {
-				urlGetterMock.On("GetURL", tc.alias).
-					Return(tc.url, tc.mockError).Once()
+			urlGetterMock.On("GetURL", tc.alias).
+				Return(storage.URL{
+					URL:       tc.url,
+					Alias:     tc.alias,
+					ExpiresAt: tc.expiresAt,
+				}, nil).Once()
 
+			// visits are only recorded for non-expired links
+			if tc.status == http.StatusFound {
 				urlGetterMock.On("RecordVisit", tc.alias).
-					Return(tc.mockError).Once()
+					Return(nil).Once()
 			}
 
 			r := chi.NewRouter()
@@ -47,11 +63,21 @@ func TestRedirectHandler(t *testing.T) {
 			ts := httptest.NewServer(r)
 			defer ts.Close()
 
-			redirectedToURL, err := api.GetRedirect(ts.URL + "/" + tc.alias)
-			require.NoError(t, err)
+			if tc.status == http.StatusFound {
+				redirectedToURL, err := api.GetRedirect(ts.URL + "/" + tc.alias)
+				require.NoError(t, err)
 
-			// Check the final URL after redirection.
-			assert.Equal(t, tc.url, redirectedToURL)
+				// Check the final URL after redirection.
+				assert.Equal(t, tc.url, redirectedToURL)
+
+				return
+			}
+
+			resp, err := http.Get(ts.URL + "/" + tc.alias)
+			require.NoError(t, err)
+			defer func() { _ = resp.Body.Close() }()
+
+			require.Equal(t, tc.status, resp.StatusCode)
 		})
 	}
 }
